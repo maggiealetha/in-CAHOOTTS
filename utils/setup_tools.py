@@ -12,7 +12,7 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 
 
-from time_dataset import TimeDataset
+from .utils.time_dataset import TimeDataset
 from torch.utils.data import DataLoader
 
 # Function to load yaml configuration file
@@ -62,7 +62,40 @@ def setup_priors_erv_calc(gs_df, seed, gene_names, return_gs = False): #gold_sta
 
         return _prior
 
+def _get_data_from_ad( 
+    adata,
+    layers,
+    agg_func=np.add,
+    densify=False,
+    **kwargs
+):
 
+    """from Chris Jackson"""
+
+    if isinstance(layers, (tuple, list)):
+        _output = _get_data_from_ad(adata, layers[0], densify=densify).copy()
+        for layer in layers[1:]:
+            agg_func(
+                _output,
+                _get_data_from_ad(adata, layer, densify=densify),
+                out=_output,
+                **kwargs
+            )
+
+    elif layers == 'X':
+        _output = adata.X
+
+    else:
+        _output = adata.layers[layers]
+
+    if densify:
+        try:
+            _output = _output.toarray()
+        except AttributeError:
+            pass
+
+    return _output
+    
 def preprocess_data_general(data_obj):
 
     counts_scaling = TruncRobustScaler(with_centering=False)
