@@ -13,8 +13,8 @@ try:
 except ImportError:
     from torchdiffeq import odeint_adjoint as odeint
 
-from  .utils.setup_tools import _shuffle_time_data
-from .utils.utils import calc_r2
+from  ..utils.setup_tools import _shuffle_time_data
+from ..utils.utils import calc_r2
 
 
 def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False):
@@ -45,6 +45,7 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
             for d in dl:
 
                 if decay:
+                    print("running in decay")
                     batch_x0 = torch.mean(d[:,0,:,0],dim=0).to(device)
                     _batch_x = torch.mean(d[:,:,:,0],dim=0).to(device)
 

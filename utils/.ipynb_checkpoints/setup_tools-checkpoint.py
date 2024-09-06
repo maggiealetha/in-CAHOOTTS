@@ -12,7 +12,7 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 
 
-from .utils.time_dataset import TimeDataset
+from .time_dataset import TimeDataset
 from torch.utils.data import DataLoader
 
 # Function to load yaml configuration file
@@ -151,7 +151,7 @@ def preprocess_data_biophysical(data_obj):
 
     return data_, time_vector#, count_scaling.scale_, velo_scaling.scale_
 
-def split_data(data, time, seed = 257, split = 0.2):
+def split_data(data, time, seed = 257, split = 0.2, decay = False):
 
     validation_size = split
     random_seed = seed
@@ -167,7 +167,10 @@ def split_data(data, time, seed = 257, split = 0.2):
     _test = data[test_idx, :]
     _test_t = time[test_idx]
 
-    n_genes = _train.shape[-1]
+    if decay:
+        n_genes = _train.shape[-2]
+    else:
+        n_genes = _train.shape[-1]
 
     return _train, _train_t, _test, _test_t, n_genes
 
@@ -257,39 +260,50 @@ def _shuffle_time_data(dl):
     except AttributeError:
         pass
 
-def save_per_cv(cv, final_epoch, func, tr_mse, vd_mse, r2, output_dir, shuffled = False, decay = False):
+def mkdirs(run_num, use_prior = False, decay = False, shuffled = False):
+    prior_bool=""
+    output_path=""
+    
+    if use_prior:
+        prior_bool = 'yeast_with_prior/'
+
+        if shuffled:
+            output_path += os.path.join(prior_bool,"shuffled")
+
+    else:
+        prior_bool = 'yeast_no_prior/'
 
     if decay:
-        full_output_dir = os.path.join(output_dir,'decay')
+        print('pre decay', output_path)
+        output_path += os.path.join(prior_bool,"decay")
+        print('in decay', output_path)
     
-    elif shuffled:
-        full_output_dir = os.path.join(output_dir,'shuffled')
+    dir_path = os.path.join(output_path, "run"+str(run_num))
+    print(dir_path)
+    print(os.getcwd()) 
     
-    else:
-        full_output_dir = output_dir
+    os.mkdir(dir_path)
+    return(dir_path)
+
+def save_per_cv(cv, final_epoch, func, tr_mse, vd_mse, r2, output_dir, shuffled = False, decay = False):
     
-    torch.save(func.state_dict(), os.path.join(full_output_dir, "model_cv%i_epochs%i.pt" %(cv, final_epoch)))
-    np.savetxt(os.path.join(full_output_dir, "tr_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), tr_mse, delimiter=',')
-    np.savetxt(os.path.join(full_output_dir, "vd_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), vd_mse, delimiter=',')
-    np.savetxt(os.path.join(full_output_dir, "r2_cv%i_epochs%i.csv" %(cv, final_epoch)), r2, delimiter=',')
+    torch.save(func.state_dict(), os.path.join(output_dir, "model_cv%i_epochs%i.pt" %(cv, final_epoch)))
+    np.savetxt(os.path.join(output_dir, "tr_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), tr_mse, delimiter=',')
+    np.savetxt(os.path.join(output_dir, "vd_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), vd_mse, delimiter=',')
+    np.savetxt(os.path.join(output_dir, "r2_cv%i_epochs%i.csv" %(cv, final_epoch)), r2, delimiter=',')
 
 def save_meta_data(output_dir, config, gs_seeds, data_seeds, prior_seeds = None, shuffled_seeds = None, decay = False):
     
-    if decay:
-        full_output_dir = os.path.join(output_dir,'decay')
-        
-    elif (len(prior_seeds) > 0) and (len(shuffled_seeds) > 0):
-        full_output_dir = os.path.join(output_dir,'shuffled')
+
+    if (len(prior_seeds) > 0) and (len(shuffled_seeds) > 0):
         meta_data = np.vstack((gs_seeds,data_seeds, prior_seeds, shuffled_seeds)).T
         cols = ['gs_seed', 'data_seed', 'prior_seed', 'shuffled_seed']
    
     elif (len(prior_seeds) > 0):
-        full_output_dir = output_dir
         meta_data = np.vstack((gs_seeds,data_seeds, prior_seeds)).T
         cols = ['gs_seed', 'data_seed', 'prior_seed']
     
     else:
-        full_output_dir = output_dir
         meta_data = np.vstack((gs_seeds,data_seeds)).T
         cols = ['gs_seed', 'data_seed']
             

@@ -13,8 +13,8 @@ try:
 except ImportError:
     from torchdiffeq import odeint_adjoint as odeint
 
-from  .utils.setup_tools import _shuffle_time_data
-from .utils.utils import calc_r2
+from  ..utils.setup_tools import _shuffle_time_data
+from ..utils.utils import calc_r2
 
 
 def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False):

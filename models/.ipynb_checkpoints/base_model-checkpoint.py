@@ -49,6 +49,13 @@ class ODEFunc(nn.Module):
         decay_mod = torch.mul(lambda_,y)*-1
         dxdt = decay_mod + alpha
         return(dxdt)
+        
+    def get_decay(self, y):
+        
+        lambda_ = self.lambda_(y)
+        decay_mod = torch.mul(lambda_,y)*-1
+        
+        return decay_mod
 
     def get_biophys(self, t, y_, c_scale=None, v_scale=None):
 
