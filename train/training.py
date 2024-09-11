@@ -84,7 +84,7 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
             _shuffle_time_data(dls[i])    # Shuffle training data
             _shuffle_time_data(vdls[i])  # Shuffle validation data
 
-        if iter % 2 == 0:
+        if iter % 20 == 0:
             r2_e_list = [[] for _ in range(len(vdls))]  # Separate r2_e for each pair of dataset
             vd_loss = [[] for _ in range(len(vdls))]
             

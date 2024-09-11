@@ -21,6 +21,9 @@ def load_config(config_name):
     CONFIG_PATH = "mag_nODE_model/"
     with open(os.path.join(CONFIG_PATH, config_name)) as file:
         config = yaml.safe_load(file)
+        config['use_prior'] = bool(config['use_prior'])
+        config['shuffle_prior'] = bool(config['shuffle_prior'])
+        config['decay'] = bool(config['decay'])
 
     return config
 
@@ -96,11 +99,16 @@ def _get_data_from_ad(
 
     return _output
     
-def preprocess_data_general(data_obj):
+def preprocess_data_general(data_obj, time_axis = 'rapa'):
 
     counts_scaling = TruncRobustScaler(with_centering=False)
 
-    time_vector = data_obj.obs['program_rapa_time'].values
+    time_vector = None
+    
+    if time_axis == 'rapa':
+        time_vector = data_obj.obs['program_rapa_time'].values
+    else:
+        time_vector = data_obj.obs['program_cc_time'].values
 
     data_obj.X = data_obj.X.astype(np.float32)
     sc.pp.normalize_per_cell(data_obj, min_counts=0)
@@ -263,7 +271,7 @@ def _shuffle_time_data(dl):
 def mkdirs(run_num, use_prior = False, decay = False, shuffled = False):
     prior_bool=""
     output_path=""
-    
+
     if use_prior:
         prior_bool = 'yeast_with_prior/'
 
@@ -278,9 +286,12 @@ def mkdirs(run_num, use_prior = False, decay = False, shuffled = False):
         output_path += os.path.join(prior_bool,"decay")
         print('in decay', output_path)
     
+    else:
+        output_path += os.path.join(prior_bool)
+    
     dir_path = os.path.join(output_path, "run"+str(run_num))
     print(dir_path)
-    print(os.getcwd()) 
+    #print(os.getcwd()) 
     
     os.mkdir(dir_path)
     return(dir_path)
