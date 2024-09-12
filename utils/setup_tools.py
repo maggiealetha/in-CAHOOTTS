@@ -147,12 +147,16 @@ def preprocess_data_biophysical(data_obj):
             )
     velocity_data *= -1
 
-    velo_scaling = TruncRobustScaler(with_centering=False)
+    #velo_scaling = TruncRobustScaler(with_centering=False)
+
+    # data_.append(
+    #             velo_scaling.fit_transform(
+    #                 velocity_data
+    #             )
+    #         )
 
     data_.append(
-                velo_scaling.fit_transform(
-                    velocity_data
-                )
+            velocity_data*(1/count_scaler)
             )
 
     data_ = np.stack(data_, axis=-1)
