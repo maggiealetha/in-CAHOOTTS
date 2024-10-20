@@ -14,18 +14,21 @@ except ImportError:
     from torchdiffeq import odeint_adjoint as odeint
 
 from  ..utils.setup_tools import _shuffle_time_data
-from ..utils.utils import calc_r2
+from ..utils.utils import calc_r2_per_feature as calc_r2
 
-
-def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False):
+def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False, patience_ = 30, decay_weight = 1):
     loss_f = torch.nn.MSELoss()
-    losses = []
+    losses = [] 
     vd_loss_e = []
     r2_e = []
+
+    losses_d = []
+    vd_loss_d_e = []
+    
     optimizer = opt = optim.Adam(func.parameters(), lr=lr, weight_decay=wd)
 
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
-                                                     factor=0.9, patience=30, threshold=1e-09,
+                                                     factor=0.9, patience=patience_, threshold=1e-09,
                                                      threshold_mode='abs', cooldown=0, min_lr=1e-5, eps=1e-09, verbose=True)
     if func.use_prior:
         print('sending prior to device')
@@ -34,6 +37,7 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
     for iter in tqdm(range(niters + 1)):
         optimizer.zero_grad()
         step_loss = []
+        step_loss_d = []
         _tr_loss = 0
 
         for i in range(len(dls)):
@@ -48,19 +52,25 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
                     batch_x0 = torch.mean(d[:,0,:,0],dim=0).to(device)
                     _batch_x = torch.mean(d[:,:,:,0],dim=0).to(device)
 
-                    decay_velo = torch.mean(d[:,0,:,1],dim=0).to(device)
-                    pred_decay_velo = func.get_decay(batch_x0)
-
-                    dv_loss = loss_f(pred_decay_velo, decay_velo)
-                    dv_loss.backward(retain_graph=True)
-
 
                 else:
-                    print('standard data setup')
+                    #print('standard data setup')
                     batch_x0 = torch.mean(d[:,0,:], dim=0).to(device)
                     _batch_x = torch.mean(d, dim=0).to(device)
 
                 _pred_x = odeint(func=func, y0=batch_x0, t=batch_t, method='rk4').to(device)
+
+                if decay: # to avoid training model in parallel pass predicted expression into the model
+                    #print(_pred_x.shape)
+                    _pred_x0 = _pred_x[0,:].to(device)#torch.mean(_pred_x[:,0,:,0],dim=0).to(device)
+                    
+                    decay_velo = torch.mean(d[:,0,:,1],dim=0).to(device)
+                    pred_decay_velo = func.get_decay(_pred_x0)
+
+                    dv_loss = decay_weight*loss_f(pred_decay_velo, decay_velo)
+                    dv_loss.backward(retain_graph=True)
+                    step_loss_d.append(dv_loss.item())
+                
                 tr_loss = loss_f(_pred_x, _batch_x)
                 tr_loss.backward()
 
@@ -69,12 +79,13 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
         optimizer.step()
 
         if func.use_prior:
-            print('in pruning function')
+            #print('in pruning function')
             prune.remove(func.encoder[1], 'weight') #assumes dropout
             prune.custom_from_mask(func.encoder[1], name='weight', mask= prior != 0)
 
         scheduler.step(np.mean(step_loss))
         losses.append(np.mean(step_loss))
+        losses_d.append(np.mean(step_loss_d))
 
         if np.isnan(losses[-1]):
             print('nan encountered, stopping at: ', iter)
@@ -112,11 +123,11 @@ def _training_(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5,
             vd_e_m = [np.mean(vd_e_dataset) for vd_e_dataset in vd_loss]
             vd_loss_e.append(np.mean(vd_e_m))
 
-            if (iter > 100) and (r2_e[-4] > r2_e[-1]):
-                print('early stopping at epoch: ', iter)
-                break
+            # if (iter > 200) and (r2_e[-4] > r2_e[-1]):
+            #     print('early stopping at epoch: ', iter)
+            #     break
 
-    return losses, vd_loss_e, r2_e, iter
+    return losses, losses_d, vd_loss_e, r2_e, iter
 
 
 def __training__(niters, func, device, *args,  lr = 1e-3, wd = 1e-5, decay = False):
