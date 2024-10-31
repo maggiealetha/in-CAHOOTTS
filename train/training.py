@@ -18,6 +18,130 @@ from ..utils.utils import calc_r2_per_feature as calc_r2
 
 from torchmetrics.regression import MeanAbsolutePercentageError
 
+def _training_t_dist(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False, patience_ = 30, decay_weight = 1, t_dist = 5):
+    loss_f = torch.nn.MSELoss()
+    losses = [] 
+    vd_loss_e = []
+    r2_e = []
+    mape_e = []
+
+    losses_d = []
+    vd_loss_d_e = []
+    
+    optimizer = opt = optim.Adam(func.parameters(), lr=lr, weight_decay=wd)
+
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
+                                                     factor=0.9, patience=patience_, threshold=1e-09,
+                                                     threshold_mode='abs', cooldown=0, min_lr=1e-5, eps=1e-09, verbose=True)
+    mape = MeanAbsolutePercentageError().to(device)
+
+    if func.use_prior:
+        print('sending prior to device')
+        prior = func.prior_.to(device)
+        
+    for iter in tqdm(range(niters + 1)):
+        optimizer.zero_grad()
+        step_loss = []
+        step_loss_d = []
+        _tr_loss = 0
+
+        for i in range(len(dls)):
+            dl = dls[i]    # Training dataset
+            vdl = vdls[i]  # Validation dataset
+            batch_t = batch_ts[i]  # Batch time corresponding to the dataset
+
+            # Training loop for dataset
+            for d in dl:
+
+                if decay:
+                    batch_x0 = torch.mean(d[:,0,:,0],dim=0).to(device)
+                    _batch_x = torch.mean(d[:,:,:,0],dim=0).to(device)
+
+
+                else:
+                    #print('standard data setup')
+                    batch_x0 = torch.mean(d[:,0,:], dim=0).to(device)
+                    _batch_x = torch.mean(d, dim=0).to(device)
+
+                _pred_x = odeint(func=func, y0=batch_x0, t=batch_t, method='rk4').to(device)
+
+                if decay: # to avoid training model in parallel pass predicted expression into the model
+                    
+                    t_dist_sampler = np.linspace(0, d.shape[1]-1, int(d.shape[1]/t_dist), dtype=int)
+                    
+                    decay_velo = torch.mean(d[:,t_dist_sampler,:,1],dim=0).to(device)
+                    _pred_x_detached = _pred_x[t_dist_sampler, :].detach()
+                    
+                    pred_decay_velo = func.get_decay(_pred_x_detached).to(device) 
+                     
+                    dv_loss = loss_f(pred_decay_velo, decay_velo)
+
+                    dv_loss.backward(retain_graph=True)
+                    step_loss_d.append(dv_loss.item())
+                
+                tr_loss = loss_f(_pred_x, _batch_x)
+                tr_loss.backward()
+
+                step_loss.append(tr_loss.item())
+
+        optimizer.step()
+
+        if func.use_prior:
+            #print('in pruning function')
+            prune.remove(func.encoder[1], 'weight') #assumes dropout
+            prune.custom_from_mask(func.encoder[1], name='weight', mask= prior != 0)
+
+        scheduler.step(np.mean(step_loss))
+        losses.append(np.mean(step_loss))
+        losses_d.append(np.mean(step_loss_d))
+
+        if np.isnan(losses[-1]):
+            print('nan encountered, stopping at: ', iter)
+            break
+
+        for i in range(len(dls)):
+            _shuffle_time_data(dls[i])    # Shuffle training data
+            _shuffle_time_data(vdls[i])  # Shuffle validation data
+
+        if iter % 20 == 0:
+            r2_e_list = [[] for _ in range(len(vdls))]  # Separate r2_e for each pair of dataset
+            vd_loss = [[] for _ in range(len(vdls))]
+            mape_e_list = [[] for _ in range(len(vdls))]
+            
+            for i in range(len(vdls)):
+                vdl = vdls[i]
+                # Validation loop
+                for vd in vdl:
+                    if decay:
+                        batch_x0 = torch.mean(vd[:,0,:,0],dim=0).to(device)
+                        _batch_x = torch.mean(vd[:,:,:,0],dim=0).to(device)
+                    else:
+                        batch_x0 = torch.mean(vd[:,0,:], dim=0).to(device)
+                        _batch_x = torch.mean(vd, dim=0).to(device)
+                        
+                    _pred_x = odeint(func=func, y0=batch_x0, t=batch_t, method='rk4').to(device)
+                    vd_loss[i].append(loss_f(_pred_x, _batch_x).item())
+                    r2_e_list[i].append(calc_r2(_batch_x, _pred_x).item())
+                    mape_e_list[i].append(mape(_pred_x, _batch_x).item())
+                    print(f'R2 for dataset {i+1}: ', r2_e_list[i][-1])
+            
+            for r2_e_dataset in r2_e_list:
+                print('r2_e_dataset', len(r2_e_dataset), 'ndls', len(dls))
+            r2_e_m = [np.mean(r2_e_dataset) for r2_e_dataset in r2_e_list]
+            r2_e.append(np.mean(r2_e_m))
+            
+            mape_e_m = [np.mean(r2_e_dataset) for r2_e_dataset in mape_e_list]
+            mape_e.append(np.mean(mape_e_m))
+            
+            vd_e_m = [np.mean(vd_e_dataset) for vd_e_dataset in vd_loss]
+            vd_loss_e.append(np.mean(vd_e_m))
+
+            # if (iter > 200) and (r2_e[-4] > r2_e[-1]):
+            #     print('early stopping at epoch: ', iter)
+            #     break
+
+    return losses, losses_d, vd_loss_e, r2_e, mape_e, iter
+    
 def _training_no_stack_mape(niters, func, device, dls, vdls, batch_ts,  lr = 1e-3, wd = 1e-5, decay = False, patience_ = 30, decay_weight = 1, annealing = False):
     loss_f = torch.nn.MSELoss()
     losses = [] 
@@ -33,7 +157,7 @@ def _training_no_stack_mape(niters, func, device, dls, vdls, batch_ts,  lr = 1e-
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
                                                      factor=0.9, patience=patience_, threshold=1e-09,
                                                      threshold_mode='abs', cooldown=0, min_lr=1e-5, eps=1e-09, verbose=True)
-    mape = MeanAbsolutePercentageError().to_device()
+    mape = MeanAbsolutePercentageError().to(device)
 
     if func.use_prior:
         print('sending prior to device')
@@ -81,7 +205,7 @@ def _training_no_stack_mape(niters, func, device, dls, vdls, batch_ts,  lr = 1e-
                      
                     dv_loss_init = loss_f(pred_decay_velo[0], decay_velo[0])
                     
-                    lower_bound_violations = torch.clamp(pred_decay_velo - decay_velo.min(dim=0).values, min=0)
+                    lower_bound_violations = torch.clamp(torch.abs(decay_velo.min(dim=0).values) - torch.abs(pred_decay_velo), max=0)
                     lower_bound_loss = torch.mean(lower_bound_violations**2)
 
                     dv_loss = dv_loss_init + decay_weight*lower_bound_loss
