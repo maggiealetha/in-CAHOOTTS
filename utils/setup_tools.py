@@ -15,11 +15,37 @@ from sklearn.model_selection import train_test_split
 from .time_dataset import TimeDataset
 from torch.utils.data import DataLoader
 
+def select_random_subset(batch_t, ivp_offset, subset_size):
+    """
+    Select a random subset of values from a 1-D tensor and return them in sorted order.
+
+    :param batch_t: 1-D tensor with values (e.g., time vector).
+    :param subset_size: Number of elements to select from the tensor.
+    :return: A new tensor containing the selected subset of values in sorted order.
+    """
+    if subset_size > len(batch_t):
+        raise ValueError("Subset size must be less than or equal to the length of batch_t.")
+
+    # Randomly select indices without replacement
+    indices = torch.randperm(len(batch_t)-ivp_offset)[:subset_size] + ivp_offset
+    
+    # Select the subset and sort it
+    selected_subset = batch_t[indices]
+    sorted_subset = torch.sort(selected_subset).values  # Sort the selected subset
+
+    return sorted_subset
+    
 # Function to load yaml configuration file
 def load_config(config_name):
     # folder to load config file
     CONFIG_PATH = "mag_nODE_model/"
-    with open(os.path.join(CONFIG_PATH, config_name)) as file:
+    if config_name[0] == 'm':
+        _config_name = config_name
+        print(_config_name)
+    else:
+        _config_name = os.path.join(CONFIG_PATH, config_name)
+        print(_config_name)
+    with open(_config_name) as file: 
         config = yaml.safe_load(file)
         config['use_prior'] = bool(config['use_prior'])
         config['shuffle_prior'] = bool(config['shuffle_prior'])
@@ -99,7 +125,7 @@ def _get_data_from_ad(
 
     return _output
     
-def preprocess_data_general(data_obj, time_axis = 'rapa'):
+def preprocess_data_general(data_obj, time_axis = 'rapa', post_process = False):
 
     counts_scaling = TruncRobustScaler(with_centering=False)
 
@@ -116,9 +142,13 @@ def preprocess_data_general(data_obj, time_axis = 'rapa'):
     data = counts_scaling.fit_transform(data_obj.X.A)
 
 
-    return data, time_vector#, counts_scaling.scale_
+    if post_process:
+        return data, time_vector, counts_scaling.scale_
 
-def preprocess_data_biophysical(data_obj):
+    else:
+        return data, time_vector
+
+def preprocess_data_biophysical(data_obj, post_process = False):
 
     time_vector = data_obj.obs['program_rapa_time'].values
 
@@ -156,12 +186,16 @@ def preprocess_data_biophysical(data_obj):
     #         )
 
     data_.append(
-            velocity_data*(1/count_scaler)
+            velocity_data*(1/count_scaling.scale_)
             )
 
     data_ = np.stack(data_, axis=-1)
 
-    return data_, time_vector#, count_scaling.scale_, velo_scaling.scale_
+    if post_process:
+        return data_, time_vector, count_scaling.scale_
+
+    else:
+        return data_, time_vector#, count_scaling.scale_, velo_scaling.scale_
 
 def split_data(data, time, seed = 257, split = 0.2, decay = False):
 
@@ -186,7 +220,8 @@ def split_data(data, time, seed = 257, split = 0.2, decay = False):
 
     return _train, _train_t, _test, _test_t, n_genes
 
-def create_dls(_train, _tr_t, _test, _t_t, ts, sl, tmin, tmax):
+def create_dls(_train, _tr_t, _test, _t_t, ts, sl, tmin, tmax, bs = 20):
+    print('in c_dls ts: ', ts, 'sl: ', sl, 'tmin: ', tmin, 'tmax: ', tmax)
 
     td = TimeDataset(
     _train,
@@ -199,7 +234,7 @@ def create_dls(_train, _tr_t, _test, _t_t, ts, sl, tmin, tmax):
     print(td.n)
     dl = DataLoader(
             td,
-            batch_size=20,#td.n
+            batch_size=bs,
             drop_last=True,
         )
 
@@ -215,33 +250,38 @@ def create_dls(_train, _tr_t, _test, _t_t, ts, sl, tmin, tmax):
     print(vd.n)
     vdl = DataLoader(
             vd,
-            batch_size=20,#vd.n
+            batch_size=bs,
             drop_last=True,
         )
 
     return dl, vdl
     
-def gen_batch_t(tmin_seg, tmax_seg, sl, tmax):
+def gen_batch_t(tmin_seg, tmax_seg, sl, tmax, scaling_tmax=None):
     
-    batch_t = torch.linspace(tmin_seg, tmax_seg, sl) / tmax
+    scaling_factor = scaling_tmax if scaling_tmax is not None else tmax
+    
+    batch_t = torch.linspace(tmin_seg, tmax_seg, sl) / scaling_factor
 
     return batch_t  
 
-def gen_dls(train, train_t, test, test_t, ts = 1, sl = 30, tmin = 0, tmax=60, bigT = 60):
+def gen_dls(train, train_t, test, test_t, ts = 1, sl = 30, tmin = 0, tmax=60):
     
     dl, vdl = create_dls(train, train_t, test, test_t, ts, sl, tmin, tmin+sl)
 
     return dl, vdl
 
-def setup_dls(train, train_t, test, test_t, ts = 1, sl = 30, n_dls = 2, tmin = 0, tmax = 60):
+def setup_dls(train, train_t, test, test_t, ts = 1, sl = 30, n_dls = 2, tmin = 0, tmax = 60, use_offset = True, bigT_for_scaling = None):
 
     dls = []
     vdls = [] 
     batch_ts = []
     
     bigT = sl*n_dls
-    offset = tmin * -1
-    print(offset)
+    if use_offset:
+        offset = tmin * -1
+        print(offset)
+    else:
+        offset=0
 
     for i in range(n_dls):
         if i == 0:
@@ -250,7 +290,7 @@ def setup_dls(train, train_t, test, test_t, ts = 1, sl = 30, n_dls = 2, tmin = 0
         else:
             tmin_segment = tmin + offset + i * sl
             tmax_segment = tmin_segment + sl
-    
+            
         # Ensure we do not exceed bigT
         tmax_segment = min(tmax_segment, bigT)
 
@@ -260,7 +300,7 @@ def setup_dls(train, train_t, test, test_t, ts = 1, sl = 30, n_dls = 2, tmin = 0
         vdls.append(vdl)
 
         print(tmin_segment, tmax_segment, sl, tmax)
-        batch_t = gen_batch_t(tmin_segment, tmax_segment, sl, tmax)
+        batch_t = gen_batch_t(tmin_segment, tmax_segment, sl, tmax, scaling_tmax = bigT_for_scaling)
 
         batch_ts.append(batch_t)
 
@@ -300,12 +340,26 @@ def mkdirs(run_num, use_prior = False, decay = False, shuffled = False):
     os.mkdir(dir_path)
     return(dir_path)
 
-def save_per_cv(cv, final_epoch, func, tr_mse, vd_mse, r2, output_dir, shuffled = False, decay = False):
-    
-    torch.save(func.state_dict(), os.path.join(output_dir, "model_cv%i_epochs%i.pt" %(cv, final_epoch)))
-    np.savetxt(os.path.join(output_dir, "tr_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), tr_mse, delimiter=',')
-    np.savetxt(os.path.join(output_dir, "vd_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), vd_mse, delimiter=',')
-    np.savetxt(os.path.join(output_dir, "r2_cv%i_epochs%i.csv" %(cv, final_epoch)), r2, delimiter=',')
+def save_per_cv(cv, final_epoch, func, tr_mse, vd_mse, r2, output_dir, mape = None, shuffled = False, decay = False, rate_  = None, prior_weight = None, prior_loss = None, wd = None):
+
+    if rate_ is not None:
+        torch.save(func.state_dict(), os.path.join(output_dir, "model_cv%i_epochs%i_r%.4f.pt" %(cv, final_epoch, rate_)))
+        np.savetxt(os.path.join(output_dir, "tr_loss_cv%i_epochs%i_r%.4f.csv" %(cv, final_epoch, rate_)), tr_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "vd_loss_cv%i_epochs%i_r%.4f.csv" %(cv, final_epoch, rate_)), vd_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "r2_cv%i_epochs%i_r%.4f.csv" %(cv, final_epoch, rate_)), r2, delimiter=',')
+    if prior_weight is not None:
+        torch.save(func.state_dict(), os.path.join(output_dir, "model_cv%i_epochs%i_pw%.4f_wd%.6f.pt" %(cv, final_epoch, prior_weight, wd)))
+        np.savetxt(os.path.join(output_dir, "tr_loss_cv%i_epochs%i_pw%.4f_wd%.6f.csv" %(cv, final_epoch, prior_weight, wd)), tr_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "vd_loss_cv%i_epochs%i_pw%.4f_wd%.6f.csv" %(cv, final_epoch, prior_weight, wd)), vd_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "r2_cv%i_epochs%i_pw%.4f_wd%.6f.csv" %(cv, final_epoch, prior_weight, wd)), r2, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "prior_loss_cv%i_epochs%i_pw%.4f_wd%.6f.csv" %(cv, final_epoch, prior_weight, wd)), prior_loss, delimiter=',')
+    else:
+        torch.save(func.state_dict(), os.path.join(output_dir, "model_cv%i_epochs%i.pt" %(cv, final_epoch)))
+        np.savetxt(os.path.join(output_dir, "tr_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), tr_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "vd_loss_cv%i_epochs%i.csv" %(cv, final_epoch)), vd_mse, delimiter=',')
+        np.savetxt(os.path.join(output_dir, "r2_cv%i_epochs%i.csv" %(cv, final_epoch)), r2, delimiter=',')
+        if mape is not None:
+            np.savetxt(os.path.join(output_dir, "mape_cv%i_epochs%i.csv" %(cv, final_epoch)), mape, delimiter=',')
 
 def save_meta_data(output_dir, config, gs_seeds, data_seeds, prior_seeds = None, shuffled_seeds = None, decay = False):
     
@@ -324,3 +378,14 @@ def save_meta_data(output_dir, config, gs_seeds, data_seeds, prior_seeds = None,
             
     pd.DataFrame(meta_data, columns = cols).to_csv(os.path.join(output_dir, "meta_data.tsv"), sep = '\t')
     pd.DataFrame([config]).to_csv(os.path.join(output_dir, 'config_settings.csv'), index=False)
+
+def load_meta_data(dir, shuffled = False):
+    seeds = pd.read_csv(dir+'/meta_data.tsv', header =0, sep = '\t', index_col = 0)
+    gs_seeds = seeds['gs_seed'].to_list()
+    data_seeds = seeds['data_seed'].to_list()
+    
+    if shuffled:#len(seeds.columns) > 3:
+        shuffled_seeds = seeds['shuffled_seed'].to_list()
+        return gs_seeds, data_seeds, shuffled_seeds
+    else:
+        return gs_seeds, data_seeds
