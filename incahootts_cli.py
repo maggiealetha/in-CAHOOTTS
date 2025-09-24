@@ -75,7 +75,7 @@ def main():
     
     # Run the experiment
     cmd = [
-        'python', 'run_incahootts.py',
+        'python', 'run_in_cahootts.py',
         config_file, output_dir,
         '--experiment-type', internal_type
     ]
@@ -88,13 +88,13 @@ def main():
     
     try:
         subprocess.run(cmd, check=True)
-        print(f"\n✅ Experiment completed successfully!")
+        print(f"experiment completed successfully!")
         print(f"Results saved to: {output_dir}")
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Experiment failed with exit code {e.returncode}")
+        print(f"experiment failed with exit code {e.returncode}")
         sys.exit(e.returncode)
     except KeyboardInterrupt:
-        print(f"\n⚠️  Experiment interrupted by user")
+        print(f"experiment interrupted by user")
         sys.exit(1)
 
 if __name__ == "__main__":
