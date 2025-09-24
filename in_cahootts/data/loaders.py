@@ -173,43 +173,6 @@ def shuffle_time_data(data_loader):
     except AttributeError:
         pass
 
-
-# Legacy function names for backward compatibility
-def create_dls(train_data, train_time, test_data, test_time, 
-               time_step=1, sequence_length=30, time_min=0, time_max=60, 
-               batch_size=20):
-    """Legacy function name for create_dataloaders."""
-    return create_dataloaders(train_data, train_time, test_data, test_time,
-                             time_step, sequence_length, time_min, time_max, batch_size)
-
-
-def gen_dls(train_data, train_time, test_data, test_time, 
-            time_step=1, sequence_length=30, time_min=0, time_max=60, batch_size=20):
-    """Legacy function name for create_dataloaders."""
-    return create_dataloaders(train_data, train_time, test_data, test_time,
-                             time_step, sequence_length, time_min, time_min+sequence_length, batch_size)
-
-
-def gen_batch_t(time_min, time_max, sequence_length, scaling_max=None):
-    """Legacy function name for generate_batch_times."""
-    return generate_batch_times(time_min, time_max, sequence_length, scaling_max)
-
-
-def setup_dls(train_data, train_time, test_data, test_time,
-              time_step=1, sequence_length=30, n_dataloaders=2,
-              time_min=0, time_max=60, use_offset=True, 
-              scaling_max=None, batch_size=20):
-    """Legacy function name for setup_multiple_dataloaders."""
-    return setup_multiple_dataloaders(train_data, train_time, test_data, test_time,
-                                     time_step, sequence_length, n_dataloaders,
-                                     time_min, time_max, use_offset, scaling_max, batch_size)
-
-
-def _shuffle_time_data(data_loader):
-    """Legacy function name for shuffle_time_data."""
-    return shuffle_time_data(data_loader)
-
-
 def select_sparse_random_subset(batch_t, interval_minutes=20):
     """
     Select a sparse random subset of time points with jitter.
