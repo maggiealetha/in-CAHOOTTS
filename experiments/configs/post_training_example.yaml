@@ -1,0 +1,37 @@
+# Post-Training with Prior Knowledge Configuration
+# Example: python run_post_training.py experiments/configs/post_training_example.yaml pretrained_models/model_0.pth results/post_training
+
+# Data configuration
+data_file: yeast_data/2021_INFERELATOR_DATA.h5ad
+experiment_filter: experiment_2  # Use experiment 2
+decay: false
+
+# Model configuration
+model_type: soft_prior  # SoftPriorODEFunc
+use_prior: true
+dropout: 0.2
+
+# Prior configuration
+gold_standard_file: yeast_data/YEASTRACT_20230601_BOTH.tsv.gz
+shuffle_prior: false
+
+# Training configuration
+epochs: 500  # Post-training epochs (usually fewer than pretraining)
+lr: 0.001  # Learning rate for post-training
+wd: 1.0e-05  # Weight decay
+val_frequency: 20  # Validation frequency
+patience: 20  # Early stopping patience
+
+# Data loading configuration
+sl: 29  # Sequence length
+n_dls: 3  # Number of data loaders
+tmin: 0
+tmax: 87
+ts: 1
+
+# Post-training specific
+sparse_sampling: false  # Use dense sampling for post-training
+interval_minutes: 30  # Not used unless sparse_sampling=true
+
+# Output configuration
+output_file: experiments/configs/post_training_example.yaml

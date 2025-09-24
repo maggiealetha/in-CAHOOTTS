@@ -1,0 +1,36 @@
+# Drug Perturbation Experiment Configuration
+# Example: python run_incahootts.py experiments/configs/drug_perturbation_example.yaml results/drug_pert --experiment-type drug_perturbation
+
+# Data configuration
+data_file: yeast_data/2021_INFERELATOR_DATA.h5ad
+experiment_filter: experiment_2  # Use experiment 2
+decay: false
+
+# Model configuration
+model_type: base  # ODEFunc
+use_prior: false
+dropout: 0.2
+
+# Training configuration
+epochs: 500
+lr: 0.001
+wd: 1.0e-05
+val_frequency: 20
+patience: 20
+
+# Data loading configuration
+cvs: 5
+sl: 29  # Sequence length
+n_dls: 3  # Number of data loaders
+tmin: 0
+tmax: 87
+ts: 1
+
+# Drug perturbation specific (IVP subset approach)
+sparse_sampling: false  # Use IVP subset approach
+ivp_subset: 10  # Number of initial time points
+time_subset: 30  # Number of random time points
+interval_minutes: 30  # Not used for IVP approach
+
+# Output configuration
+output_file: experiments/configs/drug_perturbation_example.yaml

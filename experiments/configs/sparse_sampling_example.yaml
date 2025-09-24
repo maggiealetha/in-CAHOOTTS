@@ -1,0 +1,34 @@
+# Sparse Sampling Experiment Configuration
+# Example: python run_incahootts.py experiments/configs/sparse_sampling_example.yaml results/sparse --experiment-type sparse_sampling
+
+# Data configuration
+data_file: yeast_data/2021_INFERELATOR_DATA.h5ad
+experiment_filter: experiment_2  # Use experiment 2
+decay: false
+
+# Model configuration
+model_type: base  # ODEFunc
+use_prior: false
+dropout: 0.2
+
+# Training configuration
+epochs: 500
+lr: 0.001
+wd: 1.0e-05
+val_frequency: 20
+patience: 20
+
+# Data loading configuration
+cvs: 5
+sl: 29  # Sequence length
+n_dls: 3  # Number of data loaders
+tmin: 0
+tmax: 87
+ts: 1
+
+# Sparse sampling specific
+interval_minutes: 30  # Time interval for sparse sampling
+# sparse_sampling is automatically set to true for this experiment type
+
+# Output configuration
+output_file: experiments/configs/sparse_sampling_example.yaml

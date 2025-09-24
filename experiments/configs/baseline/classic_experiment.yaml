@@ -1,0 +1,41 @@
+# Baseline neural ODE experiment configuration
+# This configuration reproduces the classic neural ODE results
+
+experiment_name: "classic_baseline"
+model_type: "base"
+
+# Model parameters
+model:
+  neurons: 158
+  dropout: 0.2
+  use_prior: false
+  calc_erv: false
+
+# Training parameters
+training:
+  epochs: 700
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 30
+  batch_size: 20
+
+# Data parameters
+data:
+  sequence_length: 87
+  time_min: 0
+  time_max: 87
+  time_step: 1
+  n_dataloaders: 1
+  decay_modeling: false
+
+# Experiment setup
+experiment:
+  cross_validation_folds: 5
+  random_seed: 257
+  output_dir: "results/baseline"
+  
+# Data files
+data_files:
+  data_file: "yeast_data/2021_INFERELATOR_DATA.h5ad"
+  gold_standard_file: "yeast_data/YEASTRACT_20230601_BOTH.tsv.gz"
+  experiment_filter: 2  # Use experiment 2 data

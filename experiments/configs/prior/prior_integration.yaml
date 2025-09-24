@@ -1,0 +1,45 @@
+# Prior knowledge integration experiment configuration
+# This configuration trains with prior knowledge from gold standard
+
+experiment_name: "prior_integration"
+model_type: "soft_prior"
+
+# Model parameters
+model:
+  neurons: 158
+  dropout: 0.2
+  use_prior: true
+  prior_weight: 0.1
+  calc_erv: false
+
+# Training parameters
+training:
+  epochs: 500
+  learning_rate: 0.001
+  weight_decay: 1e-7
+  patience: 30
+  batch_size: 20
+
+# Data parameters
+data:
+  sequence_length: 60
+  time_min: 0
+  time_max: 60
+  time_step: 1
+  n_dataloaders: 1
+  decay_modeling: false
+  ivp_subset: 10
+  time_subset: 30
+
+# Experiment setup
+experiment:
+  cross_validation_folds: 5
+  random_seed: 257
+  output_dir: "results/prior"
+  shuffle_prior: false
+  
+# Data files
+data_files:
+  data_file: "yeast_data/2021_INFERELATOR_DATA.h5ad"
+  gold_standard_file: "yeast_data/YEASTRACT_20230601_BOTH.tsv.gz"
+  experiment_filter: 2

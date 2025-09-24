@@ -1,0 +1,38 @@
+# Prior-Integrated Training Configuration
+# Example: python run_incahootts.py experiments/configs/prior_training_example.yaml results/prior --experiment-type prior
+
+# Data configuration
+data_file: yeast_data/2021_INFERELATOR_DATA.h5ad
+experiment_filter: experiment_2  # Use experiment 2
+decay: false
+
+# Model configuration
+model_type: soft_prior  # SoftPriorODEFunc
+use_prior: true
+dropout: 0.2
+
+# Prior configuration
+gold_standard_file: yeast_data/YEASTRACT_20230601_BOTH.tsv.gz
+shuffle_prior: false
+
+# Training configuration
+epochs: 500
+lr: 0.001
+wd: 1.0e-05
+val_frequency: 20
+patience: 20
+
+# Data loading configuration
+cvs: 5
+sl: 29  # Sequence length
+n_dls: 3  # Number of data loaders
+tmin: 0
+tmax: 87
+ts: 1
+
+# Prior training specific
+sparse_sampling: false  # Use dense sampling for prior training
+interval_minutes: 30  # Not used unless sparse_sampling=true
+
+# Output configuration
+output_file: experiments/configs/prior_training_example.yaml
