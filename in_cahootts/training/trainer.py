@@ -178,24 +178,14 @@ class Trainer:
     
     def _process_batch_dense(self, batch, batch_t, batch_idx=None):
         """Process batch using dense sampling (no indexing)."""
-        # Handle decay data format (4D) vs regular data format (3D)
-        if batch.dim() == 4:  # decay data: [batch, time, features, 2]
-            batch_x0 = torch.mean(batch[:, 0, :, 0], dim=0).to(self.device)
-            batch_x = torch.mean(batch[:, :, :, 0], dim=0).to(self.device)
-        else:  # regular data: [batch, time, features]
-            batch_x0 = torch.mean(batch[:, 0, :], dim=0).to(self.device)
-            batch_x = torch.mean(batch, dim=0).to(self.device)
+        batch_x0 = torch.mean(batch[:, 0, :], dim=0).to(self.device)
+        batch_x = torch.mean(batch, dim=0).to(self.device)
         return batch_x0, batch_x
     
     def _process_batch_indexed(self, batch, batch_t, batch_idx):
         """Process batch using indexed sampling (for IVP subset and sparse sampling)."""
-        # Handle decay data format (4D) vs regular data format (3D)
-        if batch.dim() == 4:  # decay data: [batch, time, features, 2]
-            batch_x0 = torch.mean(batch[:, 0, :, 0], dim=0).to(self.device)
-            batch_x = torch.mean(batch[:, batch_idx, :, 0], dim=0).to(self.device)
-        else:  # regular data: [batch, time, features]
-            batch_x0 = torch.mean(batch[:, 0, :], dim=0).to(self.device)
-            batch_x = torch.mean(batch[:, batch_idx, :], dim=0).to(self.device)
+        batch_x0 = torch.mean(batch[:, 0, :], dim=0).to(self.device)
+        batch_x = torch.mean(batch[:, batch_idx, :], dim=0).to(self.device)
         return batch_x0, batch_x
     
     def train_sparse_sampling(self, model, train_loaders, val_loaders, batch_times,
