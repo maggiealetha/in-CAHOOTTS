@@ -11,3 +11,9 @@
 - **Prior Knowledge Integration**: Incorporates known regulatory interactions to guide network inference
 
 <img width="1920" height="1080" alt="figure_1_png" src="https://github.com/user-attachments/assets/c876e328-2c5e-4679-9d4a-2845249322e5" />
+
+## Data
+
+The single-cell RNA sequencing data used in this study is available from GEO under accession number GSE242556. The dataset contains 173,361 *Saccharomyces cerevisiae* cells sampled over 80 minutes during rapamycin treatment.
+
+For detailed data preprocessing steps, see the Methods section of our [bioRxiv preprint](http://bit.ly/4pA2MvN).
